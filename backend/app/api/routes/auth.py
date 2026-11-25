@@ -16,12 +16,14 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
     get_current_user as get_authenticated_current_user,
-    get_current_membership,
+    get_current_membership_for_account,
 )
 from app.core.rate_limit import enforce_rate_limit
 from app.db.session import get_db
 from app.models import Company, CompanyMembership, User
 from app.schemas.auth import (
+    ChangePasswordRequest,
+    ChangePasswordResponse,
     CurrentUserResponse,
     ForgotPasswordRequest,
     LoginRequest,
@@ -36,6 +38,9 @@ from app.services.registration import (
     register_company_owner,
 )
 from app.services.authentication import (
+    InvalidCurrentPassword,
+    NewPasswordMustBeDifferent,
+    change_user_password,
     create_login_session,
     revoke_login_session,
 )
@@ -132,10 +137,11 @@ def login(
     )
 
     return LoginResponse(
-        user_id=str(user.id),
-        full_name=user.full_name,
-        email=user.email,
-    )
+    user_id=str(user.id),
+    full_name=user.full_name,
+    email=user.email,
+    must_change_password=user.must_change_password,
+)
 
 
 # --------------------------------------------------
@@ -149,7 +155,7 @@ def login(
 )
 def get_current_user_details(
     user: User = Depends(get_authenticated_current_user),
-    membership: CompanyMembership = Depends(get_current_membership),
+    membership: CompanyMembership = Depends(get_current_membership_for_account),
     db: Session = Depends(get_db),
 ):
     try:
@@ -175,6 +181,62 @@ def get_current_user_details(
         company_id=str(company.id),
         company_name=company.name,
         role=membership.role,
+        must_change_password=user.must_change_password,
+    )
+
+
+# --------------------------------------------------
+# CHANGE PASSWORD
+# --------------------------------------------------
+
+@router.post(
+    "/change-password",
+    response_model=ChangePasswordResponse,
+    status_code=status.HTTP_200_OK,
+)
+def change_password_endpoint(
+    request: ChangePasswordRequest,
+    user: User = Depends(get_authenticated_current_user),
+    stockpilot_session: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+):
+    if not stockpilot_session:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required.",
+        )
+
+    try:
+        change_user_password(
+            db=db,
+            user=user,
+            current_password=request.current_password,
+            new_password=request.new_password,
+            current_session_token=stockpilot_session,
+        )
+
+    except InvalidCurrentPassword:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect.",
+        )
+
+    except NewPasswordMustBeDifferent:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from your current password.",
+        )
+
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to change password.",
+        )
+
+    return ChangePasswordResponse(
+        message="Password changed successfully.",
+        must_change_password=False,
     )
 
 
@@ -336,3 +398,5 @@ def logout(
     return {
         "message": "Successfully logged out."
     }
+
+

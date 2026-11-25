@@ -1,6 +1,6 @@
+
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -78,7 +78,7 @@ class LoginResponse(BaseModel):
     user_id: str
     full_name: str
     email: EmailStr
-
+    must_change_password: bool
 
 
 class CurrentUserResponse(BaseModel):
@@ -88,6 +88,18 @@ class CurrentUserResponse(BaseModel):
     company_id: str
     company_name: str
     role: Literal["OWNER", "MANAGER", "STAFF", "ANALYST"]
+    must_change_password: bool
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=12, max_length=128)
+
+
+class ChangePasswordResponse(BaseModel):
+    message: str
+    must_change_password: bool
+
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr

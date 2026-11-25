@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -17,6 +18,7 @@ type UserProfile = {
   company_id: string;
   company_name: string;
   role: Role;
+  must_change_password: boolean;
 };
 
 type Branch = {
@@ -151,7 +153,13 @@ export default function BranchesPage() {
       }
 
       const profile: UserProfile = await profileResponse.json();
-      setUser(profile);
+
+if (profile.must_change_password) {
+  router.replace("/change-password");
+  return;
+}
+
+setUser(profile);
 
       const branchResponse = await fetch(`${API_URL}/api/v1/branches`, {
         credentials: "include",

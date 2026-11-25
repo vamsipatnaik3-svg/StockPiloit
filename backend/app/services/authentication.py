@@ -3,10 +3,11 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.security import verify_password
+from app.core.security import hash_password, verify_password
 from app.models import User, UserSession
 from app.schemas.auth import LoginRequest
 
@@ -135,3 +136,54 @@ def revoke_login_session(
     db.commit()
 
     return True
+
+
+class InvalidCurrentPassword(Exception):
+    pass
+
+
+class NewPasswordMustBeDifferent(Exception):
+    pass
+
+
+def change_user_password(
+    db: Session,
+    user: User,
+    current_password: str,
+    new_password: str,
+    current_session_token: str,
+) -> None:
+    """Change a user's password and revoke their other active sessions."""
+
+    if not verify_password(current_password, user.password_hash):
+        raise InvalidCurrentPassword
+
+    if verify_password(new_password, user.password_hash):
+        raise NewPasswordMustBeDifferent
+
+    token_hash = hashlib.sha256(
+        current_session_token.encode("utf-8")
+    ).hexdigest()
+
+    now = datetime.now(timezone.utc)
+
+    try:
+        user.password_hash = hash_password(new_password)
+        user.must_change_password = False
+
+        other_sessions = db.scalars(
+            select(UserSession).where(
+                UserSession.user_id == user.id,
+                UserSession.revoked_at.is_(None),
+                UserSession.token_hash != token_hash,
+            )
+        ).all()
+
+        for session in other_sessions:
+            session.revoked_at = now
+
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -15,6 +14,7 @@ type UserProfile = {
   company_id: string;
   company_name: string;
   role: "OWNER" | "MANAGER" | "STAFF" | "ANALYST";
+  must_change_password: boolean;
 };
 
 type NavigationItem = {
@@ -42,6 +42,12 @@ const navigation: NavigationItem[] = [
     label: "Branches",
     icon: "⌂",
     href: "/dashboard/branches",
+    active: false,
+  },
+  {
+    label: "Team",
+    icon: "♙",
+    href: "/dashboard/team",
     active: false,
   },
   { label: "Inventory", icon: "▤", active: false },
@@ -107,6 +113,12 @@ export default function DashboardPage() {
       }
 
       const data: UserProfile = await response.json();
+
+      if (data.must_change_password) {
+        router.replace("/change-password");
+        return;
+      }
+
       setUser(data);
     } catch (err) {
       setError(
@@ -123,6 +135,9 @@ export default function DashboardPage() {
     let cancelled = false;
 
     async function initializeDashboard() {
+      // Reset a stale logout loading state when returning to this cached page.
+      setLoggingOut(false);
+
       try {
         const response = await fetch(`${API_URL}/api/v1/auth/me`, {
           method: "GET",
@@ -148,6 +163,11 @@ export default function DashboardPage() {
         }
 
         const data: UserProfile = await response.json();
+
+        if (data.must_change_password) {
+          router.replace("/change-password");
+          return;
+        }
 
         if (!cancelled) {
           setUser(data);
@@ -175,6 +195,8 @@ export default function DashboardPage() {
   }, [router]);
 
   async function handleLogout() {
+    if (loggingOut) return;
+
     setLoggingOut(true);
     setError("");
 
@@ -191,6 +213,7 @@ export default function DashboardPage() {
       router.replace("/login");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Logout failed.");
+    } finally {
       setLoggingOut(false);
     }
   }
@@ -252,6 +275,11 @@ export default function DashboardPage() {
     .join("")
     .toUpperCase();
 
+  // Team navigation is visible only to company owners.
+  const visibleNavigation = navigation.filter(
+    (item) => item.label !== "Team" || user.role === "OWNER"
+  );
+
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-900">
       <div className="flex min-h-screen">
@@ -276,7 +304,7 @@ export default function DashboardPage() {
             </p>
 
             <nav className="mt-4 space-y-1">
-              {navigation.map((item) => (
+              {visibleNavigation.map((item) => (
                 <div key={item.label}>
                   {item.href ? (
                     <Link
@@ -339,7 +367,7 @@ export default function DashboardPage() {
           {/* LOGOUT */}
           <div className="mt-auto border-t border-slate-100 pt-6">
             <button
-              onClick={handleLogout}
+              onClick={() => void handleLogout()}
               disabled={loggingOut}
               className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
             >
@@ -366,9 +394,7 @@ export default function DashboardPage() {
                 <h2 className="text-lg font-bold tracking-tight">
                   {user.company_name}
                 </h2>
-                <p className="text-xs text-slate-400">
-                  Business workspace
-                </p>
+                <p className="text-xs text-slate-400">Business workspace</p>
               </div>
             </div>
 
@@ -382,9 +408,9 @@ export default function DashboardPage() {
               </div>
 
               <button
-                onClick={handleLogout}
+                onClick={() => void handleLogout()}
                 disabled={loggingOut}
-                className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-red-50 hover:text-red-600 lg:hidden"
+                className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 lg:hidden"
               >
                 {loggingOut ? "Signing out..." : "Sign out"}
               </button>
@@ -393,7 +419,7 @@ export default function DashboardPage() {
 
           {/* MOBILE NAVIGATION */}
           <nav className="flex gap-2 overflow-x-auto border-b border-slate-200 bg-white px-5 py-3 lg:hidden">
-            {navigation.map((item) => (
+            {visibleNavigation.map((item) => (
               <div key={item.label}>
                 {item.href ? (
                   <Link
@@ -515,7 +541,7 @@ export default function DashboardPage() {
 
               <div className="rounded-2xl border border-slate-200 bg-white p-6">
                 <h2 className="text-base font-bold text-slate-900">
-                  Expiry & waste
+                  Expiry &amp; waste
                 </h2>
 
                 <p className="mt-1 text-xs text-slate-500">

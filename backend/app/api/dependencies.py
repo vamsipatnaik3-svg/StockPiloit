@@ -41,10 +41,10 @@ def get_current_user(
     return user
 
 
-def get_current_membership(
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    company_id: UUID | None = Header(default=None, alias="X-Company-ID"),
+def _resolve_current_membership(
+    user: User,
+    db: Session,
+    company_id: UUID | None,
 ) -> CompanyMembership:
     """Resolve the authenticated user's membership in a company."""
 
@@ -84,10 +84,54 @@ def get_current_membership(
     return memberships[0]
 
 
+def get_current_membership_for_account(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    company_id: UUID | None = Header(default=None, alias="X-Company-ID"),
+) -> CompanyMembership:
+    """
+    Resolve membership for account-level endpoints.
+
+    This intentionally allows users who must change their password
+    to retrieve essential account information.
+    """
+
+    return _resolve_current_membership(
+        user=user,
+        db=db,
+        company_id=company_id,
+    )
+
+
+def get_current_membership(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    company_id: UUID | None = Header(default=None, alias="X-Company-ID"),
+) -> CompanyMembership:
+    """
+    Resolve membership for normal business endpoints.
+
+    Users with temporary passwords must change their password first.
+    """
+
+    if user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "PASSWORD_CHANGE_REQUIRED",
+                "message": "You must change your password before accessing this resource.",
+            },
+        )
+
+    return _resolve_current_membership(
+        user=user,
+        db=db,
+        company_id=company_id,
+    )
+
+
 def require_roles(*allowed_roles: str):
-    """
-    Create a dependency that allows only specified membership roles.
-    """
+    """Create a dependency that allows only specified membership roles."""
 
     if not allowed_roles:
         raise ValueError("At least one allowed role must be provided.")

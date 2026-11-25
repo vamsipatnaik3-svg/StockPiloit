@@ -18,10 +18,21 @@ export default function HomePage() {
         credentials: "include",
       });
 
-      if (response.ok || response.status === 409) {
-        router.replace("/dashboard");
-        return;
-      }
+      if (response.ok) {
+  const profile = await response.json();
+
+  router.replace(
+    profile.must_change_password
+      ? "/change-password"
+      : "/dashboard"
+  );
+  return;
+}
+
+if (response.status === 409) {
+  router.replace("/dashboard");
+  return;
+}
 
       if (response.status === 401) {
         router.replace("/login");
@@ -46,10 +57,21 @@ export default function HomePage() {
 
       if (cancelled) return;
 
-      if (response.ok || response.status === 409) {
-        router.replace("/dashboard");
-        return;
-      }
+      if (response.ok) {
+  const profile = await response.json();
+
+  router.replace(
+    profile.must_change_password
+      ? "/change-password"
+      : "/dashboard"
+  );
+  return;
+}
+
+if (response.status === 409) {
+  router.replace("/dashboard");
+  return;
+}
 
       if (response.status === 401) {
         router.replace("/login");

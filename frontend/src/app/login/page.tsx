@@ -31,19 +31,25 @@ export default function LoginPage() {
     let cancelled = false;
 
     async function checkSession() {
-      try {
-        const response = await fetch(`${API_URL}/api/v1/auth/me`, {
-          method: "GET",
-          credentials: "include",
-        });
+  try {
+    const response = await fetch(`${API_URL}/api/v1/auth/me`, {
+      method: "GET",
+      credentials: "include",
+    });
 
-        if (response.ok && !cancelled) {
-          router.replace("/dashboard");
-        }
-      } catch {
-        // No active session or backend unavailable.
-      }
+    if (response.ok && !cancelled) {
+      const profile = await response.json();
+
+      router.replace(
+        profile.must_change_password
+          ? "/change-password"
+          : "/dashboard"
+      );
     }
+  } catch {
+    // No active session or backend unavailable.
+  }
+}
 
     void checkSession();
 
@@ -110,9 +116,13 @@ export default function LoginPage() {
 
       const profile = await profileResponse.json();
 
-      setSuccess(`Welcome back, ${profile.full_name}!`);
+setSuccess(`Welcome back, ${profile.full_name}!`);
 
-      router.replace("/dashboard");
+if (profile.must_change_password) {
+  router.replace("/change-password");
+} else {
+  router.replace("/dashboard");
+}
     } catch (err) {
       setError(
         err instanceof Error
