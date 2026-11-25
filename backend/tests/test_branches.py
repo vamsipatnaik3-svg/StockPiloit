@@ -1,5 +1,11 @@
 
 from uuid import UUID
+from sqlalchemy.exc import IntegrityError
+from uuid import UUID
+
+import pytest
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 import pytest
 from sqlalchemy import select
@@ -670,3 +676,253 @@ def test_staff_and_analyst_cannot_manage_branch_members(
 
     assert assign_response.status_code == 403
     assert delete_response.status_code == 403
+
+@pytest.mark.parametrize("role", ["MANAGER", "STAFF", "ANALYST"])
+def test_non_owner_can_list_only_assigned_branches(
+    test_environment,
+    role,
+):
+    client, session_factory = test_environment
+
+    registration, token = register_and_login(
+        client,
+        f"{role.lower()}.branch.list@example.com",
+        f"{role} Branch Listing Company",
+    )
+
+    assigned_branch = create_branch(
+        client,
+        token,
+        "Assigned Branch",
+        "ASG01",
+    )
+
+    unassigned_branch = create_branch(
+        client,
+        token,
+        "Unassigned Branch",
+        "UNAS01",
+    )
+
+    membership_id = get_company_owner_membership(
+        session_factory,
+        registration["company_id"],
+    )
+
+    with session_factory() as db:
+        db.add(
+            BranchMembership(
+                branch_id=UUID(assigned_branch["id"]),
+                company_membership_id=membership_id,
+            )
+        )
+        db.commit()
+
+    change_membership_role(
+        session_factory,
+        membership_id,
+        role,
+    )
+
+    response = client.get(
+        "/api/v1/branches",
+        cookies={"stockpilot_session": token},
+    )
+
+    assert response.status_code == 200
+
+    branches = response.json()
+
+    assert len(branches) == 1
+    assert branches[0]["id"] == assigned_branch["id"]
+    assert branches[0]["name"] == "Assigned Branch"
+
+
+@pytest.mark.parametrize("role", ["MANAGER", "STAFF", "ANALYST"])
+def test_non_owner_cannot_list_inactive_assigned_branch(
+    test_environment,
+    role,
+):
+    client, session_factory = test_environment
+
+    registration, token = register_and_login(
+        client,
+        f"{role.lower()}.inactive@example.com",
+        f"{role} Inactive Branch Company",
+    )
+
+    branch = create_branch(
+        client,
+        token,
+        "Inactive Branch",
+        "INACT01",
+    )
+
+    membership_id = get_company_owner_membership(
+        session_factory,
+        registration["company_id"],
+    )
+
+    with session_factory() as db:
+        branch_record = db.get(Branch, UUID(branch["id"]))
+        assert branch_record is not None
+        branch_record.is_active = False
+
+        db.add(
+            BranchMembership(
+                branch_id=UUID(branch["id"]),
+                company_membership_id=membership_id,
+            )
+        )
+        db.commit()
+
+    change_membership_role(
+        session_factory,
+        membership_id,
+        role,
+    )
+
+    response = client.get(
+        "/api/v1/branches",
+        cookies={"stockpilot_session": token},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_owner_can_list_inactive_branches(test_environment):
+    client, session_factory = test_environment
+
+    registration, token = register_and_login(
+        client,
+        "owner.inactive@example.com",
+        "Owner Inactive Branch Company",
+    )
+
+    branch = create_branch(
+        client,
+        token,
+        "Inactive Branch",
+        "INACT02",
+    )
+
+    with session_factory() as db:
+        branch_record = db.get(Branch, UUID(branch["id"]))
+        assert branch_record is not None
+        branch_record.is_active = False
+        db.commit()
+
+    response = client.get(
+        "/api/v1/branches",
+        cookies={"stockpilot_session": token},
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["is_active"] is False
+
+
+@pytest.mark.parametrize("role", ["MANAGER", "STAFF", "ANALYST"])
+def test_non_owner_cannot_access_inactive_branch_members(
+    test_environment,
+    role,
+):
+    client, session_factory = test_environment
+
+    registration, token = register_and_login(
+        client,
+        f"{role.lower()}.inactive.access@example.com",
+        f"{role} Inactive Access Company",
+    )
+
+    branch = create_branch(
+        client,
+        token,
+        "Inactive Assigned Branch",
+        "INACT03",
+    )
+
+    membership_id = get_company_owner_membership(
+        session_factory,
+        registration["company_id"],
+    )
+
+    with session_factory() as db:
+        branch_record = db.get(Branch, UUID(branch["id"]))
+        assert branch_record is not None
+
+        branch_record.is_active = False
+
+        db.add(
+            BranchMembership(
+                branch_id=UUID(branch["id"]),
+                company_membership_id=membership_id,
+            )
+        )
+
+        db.commit()
+
+    change_membership_role(
+        session_factory,
+        membership_id,
+        role,
+    )
+
+    response = client.get(
+        f"/api/v1/branches/{branch['id']}/members",
+        cookies={"stockpilot_session": token},
+    )
+
+    assert response.status_code == 404
+
+def test_database_prevents_duplicate_branch_assignments(
+    test_environment,
+):
+    client, session_factory = test_environment
+
+    registration, token = register_and_login(
+        client,
+        "database.constraint@example.com",
+        "Database Constraint Company",
+    )
+
+    branch = create_branch(client, token)
+
+    member_id = create_company_member(
+        session_factory,
+        registration["company_id"],
+        "database.constraint.member@example.com",
+    )
+
+    first_response = assign_member(
+        client,
+        token,
+        branch["id"],
+        member_id,
+    )
+
+    assert first_response.status_code == 201
+
+    with session_factory() as db:
+        duplicate = BranchMembership(
+            branch_id=UUID(branch["id"]),
+            company_membership_id=member_id,
+        )
+
+        db.add(duplicate)
+
+        with pytest.raises(IntegrityError):
+            db.commit()
+
+        db.rollback()
+
+    with session_factory() as db:
+        assignments = db.scalars(
+            select(BranchMembership).where(
+                BranchMembership.branch_id == UUID(branch["id"]),
+                BranchMembership.company_membership_id == member_id,
+            )
+        ).all()
+
+        assert len(assignments) == 1

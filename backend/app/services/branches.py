@@ -58,6 +58,7 @@ def create_branch(
     return branch
 
 
+
 def get_company_branches(
     db: Session,
     membership: CompanyMembership,
@@ -74,13 +75,16 @@ def get_company_branches(
                 BranchMembership.branch_id == Branch.id,
             )
             .where(
-                BranchMembership.company_membership_id == membership.id
+                BranchMembership.company_membership_id == membership.id,
+                Branch.is_active.is_(True),
             )
         )
 
     query = query.order_by(Branch.name.asc())
 
     return list(db.scalars(query).all())
+
+
 
 
 def get_company_branch(
@@ -96,6 +100,9 @@ def get_company_branch(
     )
 
     if branch is None:
+        raise BranchNotFoundError
+
+    if membership.role != "OWNER" and not branch.is_active:
         raise BranchNotFoundError
 
     return branch
