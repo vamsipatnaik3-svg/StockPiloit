@@ -102,7 +102,7 @@ export default function RegisterPage() {
             </div>
 
             <span className="text-2xl font-bold tracking-tight">
-              TAVUNO
+              Tavuno
             </span>
           </div>
 
@@ -169,7 +169,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="relative z-10 flex justify-between text-xs text-slate-400">
-            <span>TAVUNO · Retail intelligence</span>
+            <span>Tavuno · Retail intelligence</span>
             <span>© 2026</span>
           </div>
         </section>
@@ -391,7 +391,7 @@ export default function RegisterPage() {
 
 <div className="mt-8 text-center">
   <p className="text-sm text-slate-500">
-    Already have a TAVUNO account?{" "}
+    Already have a Tavuno account?{" "}
     <a
       href="/login"
       className="font-semibold text-blue-600 transition hover:text-blue-800"
@@ -405,7 +405,7 @@ export default function RegisterPage() {
 
             <div className="mt-8 border-t border-slate-100 pt-6 text-center">
               <p className="text-xs text-slate-400">
-                © 2026 TAVUNO. Built for smarter retail.
+                © 2026 Tavuno. Built for smarter retail.
               </p>
             </div>
 

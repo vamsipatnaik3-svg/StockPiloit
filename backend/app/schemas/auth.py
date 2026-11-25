@@ -1,5 +1,6 @@
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -77,3 +78,30 @@ class LoginResponse(BaseModel):
     user_id: str
     full_name: str
     email: EmailStr
+
+
+
+class CurrentUserResponse(BaseModel):
+    user_id: str
+    full_name: str
+    email: EmailStr
+    company_id: str
+    company_name: str
+    role: Literal["OWNER", "MANAGER", "STAFF", "ANALYST"]
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: EmailStr) -> str:
+        return str(value).strip().lower()
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=256)
+    new_password: str = Field(min_length=12, max_length=128)
+
+
+class PasswordResetResponse(BaseModel):
+    message: str

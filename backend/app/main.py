@@ -6,7 +6,7 @@ from app.core.config import settings
 
 
 app = FastAPI(
-    title="StockPilot API",
+    title="Tavuno API",
     description="AI-powered retail intelligence platform",
     version="1.0.0",
 )
@@ -24,7 +24,7 @@ app.add_middleware(
 def health_check():
     return {
         "status": "healthy",
-        "application": "StockPilot API",
+        "application": "Tavuno API",
     }
 
 
