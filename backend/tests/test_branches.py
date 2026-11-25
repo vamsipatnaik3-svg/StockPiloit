@@ -926,3 +926,111 @@ def test_database_prevents_duplicate_branch_assignments(
         ).all()
 
         assert len(assignments) == 1
+
+def test_owner_can_list_only_active_members_of_own_company(
+    test_environment,
+):
+    client, session_factory = test_environment
+
+    registration, token = register_and_login(
+        client,
+        "eligible.owner@example.com",
+        "Eligible Members Company",
+    )
+
+    active_member_id = create_company_member(
+        session_factory,
+        registration["company_id"],
+        "eligible.active@example.com",
+    )
+
+    with session_factory() as db:
+        inactive_user = User(
+            full_name="Inactive Employee",
+            email="eligible.inactive@example.com",
+            password_hash="test-password-hash",
+            is_active=False,
+        )
+        db.add(inactive_user)
+        db.flush()
+
+        inactive_membership = CompanyMembership(
+            company_id=UUID(registration["company_id"]),
+            user_id=inactive_user.id,
+            role="STAFF",
+        )
+        db.add(inactive_membership)
+        db.commit()
+
+    other_registration, _ = register_and_login(
+        client,
+        "eligible.other@example.com",
+        "Another Company",
+    )
+
+    other_company_member_id = get_company_owner_membership(
+        session_factory,
+        other_registration["company_id"],
+    )
+
+    response = client.get(
+        "/api/v1/branches/members/eligible",
+        cookies={"stockpilot_session": token},
+    )
+
+    assert response.status_code == 200
+
+    members = response.json()
+
+    membership_ids = {
+        member["membership_id"]
+        for member in members
+    }
+
+    owner_membership_id = str(
+        get_company_owner_membership(
+            session_factory,
+            registration["company_id"],
+        )
+    )
+
+    assert membership_ids == {
+        owner_membership_id,
+        str(active_member_id),
+    }
+
+    assert str(other_company_member_id) not in membership_ids
+    assert all(
+        "password_hash" not in member
+        for member in members
+    )
+
+
+def test_non_owner_cannot_list_eligible_company_members(
+    test_environment,
+):
+    client, session_factory = test_environment
+
+    registration, token = register_and_login(
+        client,
+        "eligible.manager@example.com",
+        "Eligible Manager Company",
+    )
+
+    owner_membership_id = get_company_owner_membership(
+        session_factory,
+        registration["company_id"],
+    )
+
+    change_membership_role(
+        session_factory,
+        owner_membership_id,
+        "MANAGER",
+    )
+
+    response = client.get(
+        "/api/v1/branches/members/eligible",
+        cookies={"stockpilot_session": token},
+    )
+
+    assert response.status_code == 403

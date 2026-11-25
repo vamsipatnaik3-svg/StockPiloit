@@ -268,3 +268,34 @@ def remove_branch_member(
 
     db.delete(assignment)
     db.commit()
+
+def get_eligible_company_members(
+    db: Session,
+    membership: CompanyMembership,
+) -> list[dict]:
+    results = db.execute(
+        select(CompanyMembership, User)
+        .join(
+            User,
+            User.id == CompanyMembership.user_id,
+        )
+        .where(
+            CompanyMembership.company_id == membership.company_id,
+            User.is_active.is_(True),
+        )
+        .order_by(
+            User.full_name.asc(),
+            User.email.asc(),
+        )
+    ).all()
+
+    return [
+        {
+            "membership_id": company_membership.id,
+            "user_id": user.id,
+            "full_name": user.full_name,
+            "email": user.email,
+            "role": company_membership.role,
+        }
+        for company_membership, user in results
+    ]

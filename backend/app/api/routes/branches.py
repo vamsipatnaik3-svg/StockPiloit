@@ -13,6 +13,7 @@ from app.schemas.branch import (
     BranchMemberAssignRequest,
     BranchMemberResponse,
     BranchResponse,
+    EligibleCompanyMemberResponse,
 )
 from app.services.branches import (
     BranchAccessDeniedError,
@@ -24,12 +25,34 @@ from app.services.branches import (
     create_branch,
     get_branch_members,
     get_company_branches,
+    get_eligible_company_members,
     remove_branch_member,
 )
 
 
 router = APIRouter(tags=["Branches"])
 
+@router.get(
+    "/members/eligible",
+    response_model=list[EligibleCompanyMemberResponse],
+    status_code=status.HTTP_200_OK,
+)
+def list_eligible_company_members_endpoint(
+    membership: CompanyMembership = Depends(require_roles("OWNER")),
+    db: Session = Depends(get_db),
+):
+    try:
+        return get_eligible_company_members(
+            db=db,
+            membership=membership,
+        )
+
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to retrieve company members.",
+        )
 
 @router.post(
     "",

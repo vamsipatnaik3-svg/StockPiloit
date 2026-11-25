@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -16,6 +17,13 @@ type UserProfile = {
   role: "OWNER" | "MANAGER" | "STAFF" | "ANALYST";
 };
 
+type NavigationItem = {
+  label: string;
+  icon: string;
+  href?: string;
+  active: boolean;
+};
+
 const roleDescriptions: Record<UserProfile["role"], string> = {
   OWNER: "Company Owner",
   MANAGER: "Business Manager",
@@ -23,8 +31,19 @@ const roleDescriptions: Record<UserProfile["role"], string> = {
   ANALYST: "Business Analyst",
 };
 
-const navigation = [
-  { label: "Overview", icon: "▦", active: true },
+const navigation: NavigationItem[] = [
+  {
+    label: "Overview",
+    icon: "▦",
+    href: "/dashboard",
+    active: true,
+  },
+  {
+    label: "Branches",
+    icon: "⌂",
+    href: "/dashboard/branches",
+    active: false,
+  },
   { label: "Inventory", icon: "▤", active: false },
   { label: "Expiry & Waste", icon: "◷", active: false },
   { label: "Sales", icon: "↗", active: false },
@@ -224,6 +243,7 @@ export default function DashboardPage() {
   if (!user) return null;
 
   const firstName = user.full_name.trim().split(/\s+/)[0];
+
   const initials = user.full_name
     .trim()
     .split(/\s+/)
@@ -235,7 +255,7 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-900">
       <div className="flex min-h-screen">
-        {/* SIDEBAR */}
+        {/* DESKTOP SIDEBAR */}
         <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white px-5 py-7 lg:flex">
           <div className="flex items-center gap-3 px-2">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-xl font-bold text-white shadow-lg shadow-blue-600/20">
@@ -257,34 +277,41 @@ export default function DashboardPage() {
 
             <nav className="mt-4 space-y-1">
               {navigation.map((item) => (
-                <div
-                  key={item.label}
-                  aria-current={item.active ? "page" : undefined}
-                  title={
-                    item.active
-                      ? "Current page"
-                      : "This module is planned for a future release"
-                  }
-                  className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm ${
-                    item.active
-                      ? "bg-blue-50 font-semibold text-blue-700"
-                      : "cursor-not-allowed text-slate-400"
-                  }`}
-                >
-                  <span>
-                    <span className="mr-3">{item.icon}</span>
-                    {item.label}
-                  </span>
-                  {!item.active && (
-                    <span className="text-[9px] font-semibold uppercase tracking-wide">
-                      Soon
-                    </span>
+                <div key={item.label}>
+                  {item.href ? (
+                    <Link
+                      href={item.href}
+                      aria-current={item.active ? "page" : undefined}
+                      className={`flex items-center rounded-xl px-4 py-3 text-sm transition ${
+                        item.active
+                          ? "bg-blue-50 font-semibold text-blue-700"
+                          : "font-medium text-slate-600 hover:bg-slate-50 hover:text-blue-700"
+                      }`}
+                    >
+                      <span className="mr-3">{item.icon}</span>
+                      {item.label}
+                    </Link>
+                  ) : (
+                    <div
+                      title="This module is planned for a future release"
+                      className="flex cursor-not-allowed items-center justify-between rounded-xl px-4 py-3 text-sm text-slate-400"
+                    >
+                      <span>
+                        <span className="mr-3">{item.icon}</span>
+                        {item.label}
+                      </span>
+
+                      <span className="text-[9px] font-semibold uppercase tracking-wide">
+                        Soon
+                      </span>
+                    </div>
                   )}
                 </div>
               ))}
             </nav>
           </div>
 
+          {/* ACCOUNT */}
           <div className="mt-10">
             <p className="px-3 text-[10px] font-bold tracking-[0.18em] text-slate-400">
               YOUR ACCOUNT
@@ -309,6 +336,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* LOGOUT */}
           <div className="mt-auto border-t border-slate-100 pt-6">
             <button
               onClick={handleLogout}
@@ -366,17 +394,25 @@ export default function DashboardPage() {
           {/* MOBILE NAVIGATION */}
           <nav className="flex gap-2 overflow-x-auto border-b border-slate-200 bg-white px-5 py-3 lg:hidden">
             {navigation.map((item) => (
-              <span
-                key={item.label}
-                className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium ${
-                  item.active
-                    ? "bg-blue-50 text-blue-700"
-                    : "text-slate-400"
-                }`}
-              >
-                {item.icon} {item.label}
-                {!item.active && " · Soon"}
-              </span>
+              <div key={item.label}>
+                {item.href ? (
+                  <Link
+                    href={item.href}
+                    aria-current={item.active ? "page" : undefined}
+                    className={`block shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition ${
+                      item.active
+                        ? "bg-blue-50 text-blue-700"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-blue-700"
+                    }`}
+                  >
+                    {item.icon} {item.label}
+                  </Link>
+                ) : (
+                  <span className="block shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium text-slate-400">
+                    {item.icon} {item.label} · Soon
+                  </span>
+                )}
+              </div>
             ))}
           </nav>
 
