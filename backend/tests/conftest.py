@@ -1,3 +1,4 @@
+
 import pytest
 
 from fastapi.testclient import TestClient
@@ -13,7 +14,14 @@ from app.main import app as fastapi_app
 
 
 @pytest.fixture
-def test_environment():
+def test_environment(monkeypatch):
+    # Disable external Redis rate limiting for API integration tests.
+    # Rate limiting will be tested separately in dedicated tests.
+    monkeypatch.setattr(
+        "app.api.routes.auth.enforce_rate_limit",
+        lambda **kwargs: None,
+    )
+
     engine = create_engine(
         "sqlite+pysqlite://",
         connect_args={"check_same_thread": False},
