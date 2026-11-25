@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:16
+    container_name: stockpilot-db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: stockpilot
+      POSTGRES_USER: stockpilot
+      POSTGRES_PASSWORD: local_dev_password_change_me
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - stockpilot_postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockpilot -d stockpilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  stockpilot_postgres_data:
