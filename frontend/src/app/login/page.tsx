@@ -182,7 +182,7 @@ export default function LoginPage() {
 
             <div>
               <h1 className="text-xl font-bold tracking-tight">
-                StockPilot
+                TAVUNO
               </h1>
               <p className="text-xs text-slate-400">
                 Retail Intelligence Platform
@@ -254,7 +254,7 @@ export default function LoginPage() {
           </div>
 
           <div className="relative z-10 border-t border-white/10 pt-6 text-xs text-slate-500">
-            © 2026 StockPilot. All rights reserved.
+            © 2026 TAVUNO. All rights reserved.
           </div>
         </section>
 
@@ -270,7 +270,7 @@ export default function LoginPage() {
               </p>
 
               <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                Sign in to StockPilot
+                Sign in to TAVUNO
               </h2>
 
               <p className="mt-3 text-sm leading-6 text-slate-500">
@@ -397,7 +397,7 @@ export default function LoginPage() {
 
             <div className="mt-8 text-center">
               <p className="text-sm text-slate-500">
-                Don't have a StockPilot account?{" "}
+                Don't have a TAVUNO account?{" "}
                 <Link
                   href="/register"
                   className="font-semibold text-blue-600 transition hover:text-blue-800"
