@@ -22,6 +22,11 @@ class Branch(Base):
     __table_args__ = (
         UniqueConstraint(
             "company_id",
+            "id",
+            name="uq_branch_company_id_id",
+        ),
+        UniqueConstraint(
+            "company_id",
             "name",
             name="uq_branch_company_name",
         ),

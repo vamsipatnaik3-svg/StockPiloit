@@ -12,6 +12,8 @@ Industry = Literal[
     "electronics",
     "general_retail",
     "other",
+    "CAFE",
+    "BAKERY",
 ]
 
 

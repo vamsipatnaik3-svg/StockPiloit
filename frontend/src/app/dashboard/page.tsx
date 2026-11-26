@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import OwnerDashboard from "./owner-dashboard";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -50,6 +51,8 @@ const navigation: NavigationItem[] = [
     href: "/dashboard/team",
     active: false,
   },
+  { label: "Products", icon: "▦", href: "/dashboard/products", active: false },
+  { label: "Data uploads", icon: "⇧", href: "/dashboard/uploads", active: false },
   { label: "Inventory", icon: "▤", active: false },
   { label: "Expiry & Waste", icon: "◷", active: false },
   { label: "Sales", icon: "↗", active: false },
@@ -264,6 +267,8 @@ export default function DashboardPage() {
   }
 
   if (!user) return null;
+
+  if (user.role === "OWNER") return <OwnerDashboard user={user} />;
 
   const firstName = user.full_name.trim().split(/\s+/)[0];
 

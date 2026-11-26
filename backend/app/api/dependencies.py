@@ -1,13 +1,14 @@
 
 from uuid import UUID
 
-from fastapi import Cookie, Depends, Header, HTTPException, status
+from fastapi import Cookie, Depends, Header, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models import CompanyMembership, User
 from app.services.authentication import get_authenticated_user
+from app.core.branch_scope import BranchAccessScope, resolve_branch_scope
 
 
 VALID_ROLES = {
@@ -156,3 +157,21 @@ def require_roles(*allowed_roles: str):
         return membership
 
     return role_checker
+
+
+def get_current_branch_scope(
+    branch_id: UUID | None = None,
+    branch_ids: list[UUID] | None = Query(default=None),
+    membership: CompanyMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+) -> BranchAccessScope:
+    """Resolve requested branch filters against the caller's authorized scope.
+
+    This dependency resolves scope only; each route must still enforce the
+    capability/role allowed to use its endpoint.
+    """
+    if branch_id is not None and branch_ids is not None:
+        raise HTTPException(status_code=422,
+            detail="Use either branch_id or branch_ids, not both.")
+    requested = [branch_id] if branch_id is not None else branch_ids
+    return resolve_branch_scope(db, membership, requested)

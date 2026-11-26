@@ -18,7 +18,12 @@ from app.api.dependencies import (
     get_current_user as get_authenticated_current_user,
     get_current_membership_for_account,
 )
-from app.core.rate_limit import enforce_rate_limit
+from app.core.rate_limit import (
+    enforce_login_rate_limit,
+    enforce_rate_limit,
+    record_login_failure,
+)
+from app.core.session_cookies import clear_session_cookie, set_session_cookie
 from app.db.session import get_db
 from app.models import Company, CompanyMembership, User
 from app.schemas.auth import (
@@ -104,10 +109,13 @@ def register(
     status_code=status.HTTP_200_OK,
 )
 def login(
+    http_request: Request,
     credentials: LoginRequest,
     response: Response,
     db: Session = Depends(get_db),
 ):
+    normalized_email = str(credentials.email).strip().lower()
+    enforce_login_rate_limit(http_request, normalized_email)
     try:
         result = create_login_session(db, credentials)
 
@@ -119,6 +127,7 @@ def login(
         )
 
     if result is None:
+        record_login_failure(http_request, normalized_email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password.",
@@ -126,15 +135,7 @@ def login(
 
     user, raw_token = result
 
-    response.set_cookie(
-        key="stockpilot_session",
-        value=raw_token,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-        max_age=7 * 24 * 60 * 60,
-        path="/",
-    )
+    set_session_cookie(response, raw_token)
 
     return LoginResponse(
     user_id=str(user.id),
@@ -347,13 +348,7 @@ def reset_password_endpoint(
 
     # Clear the browser's existing session cookie.
     # All sessions have already been revoked in the database.
-    response.delete_cookie(
-        key="stockpilot_session",
-        path="/",
-        httponly=True,
-        secure=False,
-        samesite="lax",
-    )
+    clear_session_cookie(response)
 
     return PasswordResetResponse(
         message=(
@@ -387,13 +382,7 @@ def logout(
                 detail="Unable to complete logout.",
             )
 
-    response.delete_cookie(
-        key="stockpilot_session",
-        path="/",
-        httponly=True,
-        secure=False,
-        samesite="lax",
-    )
+    clear_session_cookie(response)
 
     return {
         "message": "Successfully logged out."

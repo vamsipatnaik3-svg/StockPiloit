@@ -21,6 +21,14 @@ def test_environment(monkeypatch):
         "app.api.routes.auth.enforce_rate_limit",
         lambda **kwargs: None,
     )
+    monkeypatch.setattr(
+        "app.api.routes.auth.enforce_login_rate_limit",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.auth.record_login_failure",
+        lambda *args, **kwargs: None,
+    )
 
     engine = create_engine(
         "sqlite+pysqlite://",

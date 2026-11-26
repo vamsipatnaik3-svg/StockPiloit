@@ -24,6 +24,11 @@ class CompanyMembership(Base):
             "user_id",
             name="uq_company_membership",
         ),
+        UniqueConstraint(
+            "company_id",
+            "id",
+            name="uq_company_membership_company_id_id",
+        ),
         CheckConstraint(
             "role IN ('OWNER', 'MANAGER', 'STAFF', 'ANALYST')",
             name="ck_company_membership_role",

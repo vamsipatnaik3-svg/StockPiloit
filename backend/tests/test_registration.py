@@ -90,3 +90,16 @@ def test_invalid_registration_is_rejected(test_environment):
     )
 
     assert response.status_code == 422
+
+
+def test_cafe_and_bakery_industries_are_supported_additively(test_environment):
+    client, session_factory = test_environment
+    for industry in ("CAFE", "BAKERY"):
+        payload = registration_payload()
+        payload["industry"] = industry
+        payload["email"] = f"{industry.lower()}-owner@example.com"
+        payload["company_name"] = f"{industry} Company"
+        response = client.post("/api/v1/auth/register", json=payload)
+        assert response.status_code == 201, response.text
+    with session_factory() as db:
+        assert {company.industry for company in db.scalars(select(Company)).all()} == {"CAFE", "BAKERY"}

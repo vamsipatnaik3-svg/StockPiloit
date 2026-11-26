@@ -89,6 +89,130 @@ def test_successful_login_creates_session(test_environment):
         assert user_session.expires_at is not None
 
 
+def test_production_session_cookie_is_secure_and_deletion_matches(test_environment, monkeypatch):
+    client, _ = test_environment
+    monkeypatch.setattr("app.core.config.settings.app_environment", "production")
+
+    login_response = login_test_user(client)
+    set_cookie = login_response.headers["set-cookie"].lower()
+    assert "secure" in set_cookie
+    assert "httponly" in set_cookie
+    assert "samesite=lax" in set_cookie
+    assert "path=/" in set_cookie
+
+    logout_response = client.post("/api/v1/auth/logout")
+    deleted_cookie = logout_response.headers["set-cookie"].lower()
+    assert "stockpilot_session=" in deleted_cookie
+    assert "max-age=0" in deleted_cookie
+    assert "secure" in deleted_cookie
+    assert "httponly" in deleted_cookie
+    assert "samesite=lax" in deleted_cookie
+    assert "path=/" in deleted_cookie
+
+
+def test_local_session_cookie_works_over_http(test_environment, monkeypatch):
+    client, _ = test_environment
+    monkeypatch.setattr("app.core.config.settings.app_environment", "development")
+
+    login_response = login_test_user(client)
+    cookie = login_response.headers["set-cookie"].lower()
+    assert "httponly" in cookie
+    assert "samesite=lax" in cookie
+    assert "secure" not in cookie
+    assert client.get("/api/v1/auth/me").status_code == 200
+
+
+def test_unknown_email_and_wrong_password_have_same_generic_response(test_environment):
+    client, _ = test_environment
+    register_test_user(client)
+
+    wrong_password = client.post(
+        "/api/v1/auth/login",
+        json={"email": "test.owner@example.com", "password": "WrongPassword_123!"},
+    )
+    unknown_email = client.post(
+        "/api/v1/auth/login",
+        json={"email": "unknown@example.com", "password": "WrongPassword_123!"},
+    )
+
+    assert wrong_password.status_code == unknown_email.status_code == 401
+    assert wrong_password.json() == unknown_email.json()
+
+
+def test_failed_login_attempts_are_throttled_and_accounts_are_separate(
+    test_environment, monkeypatch
+):
+    from app.core import rate_limit
+
+    client, _ = test_environment
+    monkeypatch.setattr(rate_limit.settings, "login_rate_limit_account_ip", 2)
+    monkeypatch.setattr(rate_limit.settings, "login_rate_limit_ip", 20)
+    monkeypatch.setattr(rate_limit.settings, "login_rate_limit_window_seconds", 900)
+    monkeypatch.setattr("app.api.routes.auth.enforce_login_rate_limit", rate_limit.enforce_login_rate_limit)
+    monkeypatch.setattr("app.api.routes.auth.record_login_failure", rate_limit.record_login_failure)
+
+    class MemoryRedis:
+        def __init__(self):
+            self.counts = {}
+
+        def eval(self, script, numkeys, *args):
+            keys = args[:numkeys]
+            values = args[numkeys:]
+            if "GET" in script:
+                account_count = self.counts.get(keys[0], 0)
+                ip_count = self.counts.get(keys[1], 0)
+                account_limit, ip_limit = map(int, values)
+                allowed = account_count < account_limit and ip_count < ip_limit
+                return [1 if allowed else 0, 0 if allowed else 60]
+            self.counts[keys[0]] = self.counts.get(keys[0], 0) + 1
+            self.counts[keys[1]] = self.counts.get(keys[1], 0) + 1
+            return [self.counts[keys[0]], self.counts[keys[1]]]
+
+    monkeypatch.setattr(rate_limit, "redis_client", MemoryRedis())
+
+    def failed(email):
+        return client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": "WrongPassword_123!"},
+        )
+
+    assert failed("one@example.com").status_code == 401
+    assert failed("one@example.com").status_code == 401
+    assert failed("ONE@example.com").status_code == 429
+    # A distinct normalized account has its own account+IP allowance.
+    assert failed("two@example.com").status_code == 401
+
+
+def test_successful_login_does_not_consume_failed_attempt_allowance(
+    test_environment, monkeypatch
+):
+    from app.core import rate_limit
+
+    client, _ = test_environment
+    register_test_user(client)
+    monkeypatch.setattr("app.api.routes.auth.enforce_login_rate_limit", rate_limit.enforce_login_rate_limit)
+    monkeypatch.setattr("app.api.routes.auth.record_login_failure", rate_limit.record_login_failure)
+
+    class MemoryRedis:
+        def __init__(self):
+            self.counts = {}
+
+        def eval(self, script, numkeys, *args):
+            keys = args[:numkeys]
+            if "GET" in script:
+                return [1, 0]
+            for key in keys:
+                self.counts[key] = self.counts.get(key, 0) + 1
+            return [1, 1]
+
+    redis = MemoryRedis()
+    monkeypatch.setattr(rate_limit, "redis_client", redis)
+    response = client.post("/api/v1/auth/login", json=login_payload())
+
+    assert response.status_code == 200
+    assert redis.counts == {}
+
+
 def test_login_rejects_incorrect_password(test_environment):
     client, session_factory = test_environment
 

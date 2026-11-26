@@ -300,6 +300,8 @@ export default function RegisterPage() {
                       <option value="electronics">Electronics</option>
                       <option value="general_retail">General Retail</option>
                       <option value="other">Other</option>
+                      <option value="CAFE">Café</option>
+                      <option value="BAKERY">Bakery</option>
                     </select>
                   </div>
 
